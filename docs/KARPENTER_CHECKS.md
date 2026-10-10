@@ -47,6 +47,41 @@ handling, consolidation and live rollback/teardown, existing service health.
 The executable smoke/runbook covers these checks for an explicitly authorized
 lab deployment. Mock cleanup verifies command behavior, not real node deletion.
 
-An independent read-only reviewer also ran the complete offline command with the
-same installed tooling: exit 0, no material implementation defects found. This
-review likewise made no live AWS/Kubernetes calls.
+## Independent correction review — 2026-10-10
+
+Reviewed current branch against `origin/main` (the baseline above), inspected all
+issue requirements, and reran the complete offline command before and after fixes.
+The reviewer found and corrected two safety gaps: smoke logical timeouts did not
+bound hung API/credential processes, and the singleton controller rollout allowed
+temporary surge capacity on small bootstrap workers. All kubectl commands now
+have API and process deadlines; controller maxSurge=0 avoids a second controller.
+Mock regression tests execute real GNU timeout against a stalled fake kubectl and
+verify readiness failure stops before mutation. Render tests verify rollout settings.
+
+The offline suite now downloads the official v1.13.0 CloudFormation prerequisites
+and compares **every statement in all five policies**, after substitutions, rather
+than merely checking selected tags. All policies match. Official EKS support,
+Karpenter compatibility, release chart/image and AL2023 release sources were
+independently rechecked; no version incompatibility was found. Regional availability
+is still unverified. Final full offline suite: exit 0. `git diff --check`: passed.
+
+Requirement review:
+
+| Area | Offline conclusion / remaining deployment gate |
+| --- | --- |
+| IAM / identities | Official scoped policies; exact worker PassRole, dedicated Pod Identity trust, worker/CNI/ECR policies and API-only EC2_LINUX access; credentials unverified live |
+| Bootstrap | Existing general settings preserved; singleton pinned and no surge; actual free resources and Spot availability must be checked before enabling capacity |
+| CRD ownership/order | Pinned separate CRD release precedes controller; staged Helm capacity avoids Terraform custom-resource schema discovery; live Established/Ready unverified |
+| Chart / Kubernetes / AMI | EKS 1.36, chart/controller/CRDs 1.13.0 and AL2023 v20261003 supported by primary sources; region/account availability unverified |
+| Networking | Explicit private subnet IDs and single cluster SG; private addressing, NAT, IMDSv2; live connectivity and LBC discovery behavior unverified |
+| Interruptions | Four official event types, encrypted SQS, source-rule/account-constrained producer and exact-queue consumer; delivery/drain unverified |
+| Dynamic capacity | Finite 16 CPU/64Gi defaults, standard amd64 families/sizes, Spot only, 5m consolidation, one voluntary disruption; PDB/CEL/reconciliation unverified |
+| Smoke / regression | Two 1-CPU pods, dynamic selector, process/request/rollout bounds and cleanup; mock failure/hang tests pass; live provisioning/consolidation unverified |
+| Rollout / teardown | No surge, staged readiness, drain before capacity deletion, retain controller/permissions until EC2 cleanup; manual deletion budget caveat documented; live exercise unperformed |
+| Existing behavior | Baseline Terraform HCL semantics and it-tools bytes preserved; no live plan or application/service regression evidence |
+
+No confirmed offline blocker remains. Deployment is gated on an authorized plan,
+bootstrap headroom, AMI availability, Spot role/quotas and readiness checks. No live
+AWS/Kubernetes access, Terraform plan/apply/destroy, GitHub write or billable action
+was performed by this reviewer. Unperformed live checks remain explicitly listed
+above; offline results do not establish the live acceptance criteria.

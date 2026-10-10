@@ -1,4 +1,10 @@
 replicas: 1
+# Avoid a second system-critical pod competing for small bootstrap capacity.
+# The singleton pauses reconciliation while its replacement starts.
+strategy:
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
 serviceAccount:
   name: karpenter
 nodeSelector:

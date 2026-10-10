@@ -62,6 +62,7 @@ assert nodeclass['associatePublicIPAddress'] is False
 assert nodeclass['metadataOptions']['httpTokens'] == 'required'
 dep = next(x for x in controller if x['kind'] == 'Deployment')['spec']
 assert dep['replicas'] == 1
+assert dep['strategy']['rollingUpdate'] == {'maxSurge': 0, 'maxUnavailable': 1}
 pod = dep['template']['spec']
 assert pod['nodeSelector']['eks.amazonaws.com/nodegroup'] == 'general'
 assert pod['serviceAccountName'] == 'karpenter'
@@ -73,12 +74,28 @@ assert env['INTERRUPTION_QUEUE'] == 'dev-eks-karpenter'
 assert env['AWS_REGION'] == 'eu-west-1'
 substitutions = dict(partition='aws', region='eu-west-1', account_id='123456789012', cluster_name='dev-eks', node_role_arn='arn:aws:iam::123456789012:role/dev-eks-karpenter-nodes', queue_arn='arn:aws:sqs:eu-west-1:123456789012:dev-eks-karpenter')
 statements = []
+class CloudFormationLoader(yaml.SafeLoader):
+    pass
+CloudFormationLoader.add_constructor('!Sub', lambda loader, node: loader.construct_scalar(node))
+CloudFormationLoader.add_constructor('!Ref', lambda loader, node: loader.construct_scalar(node))
+CloudFormationLoader.add_constructor('!GetAtt', lambda loader, node: loader.construct_scalar(node))
+official = yaml.load((rendered / 'official-policy.yaml').read_text(), Loader=CloudFormationLoader)['Resources']
+official_substitutions = {
+    'AWS::Partition': substitutions['partition'], 'AWS::Region': substitutions['region'],
+    'AWS::AccountId': substitutions['account_id'], 'ClusterName': substitutions['cluster_name'],
+    'KarpenterNodeRole.Arn': substitutions['node_role_arn'],
+    'KarpenterInterruptionQueue.Arn': substitutions['queue_arn'],
+}
 for p in (root / 'iam/karpenter').glob('*.json.tftpl'):
     s = p.read_text()
     for k, v in substitutions.items():
         s = s.replace('${' + k + '}', v)
     assert '${' not in s
     policy = json.loads(s)
+    source = official[p.name.removesuffix('.json.tftpl')]['Properties']['PolicyDocument']
+    for k, v in official_substitutions.items():
+        source = source.replace('${' + k + '}', v)
+    assert policy == json.loads(source), f'{p.name}: differs from official v1.13.0 policy'
     assert policy['Version'] == '2012-10-17'
     statements.extend(policy['Statement'])
 by_sid = {s['Sid']: s for s in statements}

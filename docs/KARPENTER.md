@@ -41,7 +41,9 @@ to its limit; inspect existing Pending pods too. Stop on insufficient capacity,
 OOMKills or sustained controller throttling; report a bootstrap blocker instead
 of resizing or moving the controller onto dynamic nodes. Readiness cannot be
 inferred just from instance size. A singleton briefly pauses reconciliation on
-restart. Spot bootstrap capacity can disappear; an independently approved change
+restart. Controller rolling updates explicitly use maxSurge=0/maxUnavailable=1
+so upgrades require capacity for only one controller, with a brief reconciliation
+pause. Spot bootstrap capacity can disappear; an independently approved change
 to On-Demand bootstrap capacity (and possibly larger instances/two replicas) is
 recommended for availability, but is outside this change.
 
@@ -123,7 +125,10 @@ read-only wildcards are described in `iam/karpenter/SOURCE.md`.
 then scales it to **two pods**, each requesting 1 vCPU/256Mi. Its `lab` selector
 cannot match bootstrap nodes. On an initially empty pool this creates scheduling
 demand sufficient for a NodeClaim, without a huge workload. Readiness waits 180s;
-pod rollout times out after 600s. A timeout deliberately leaves evidence available;
+pod rollout times out after 600s. GNU `timeout` is required: every kubectl process
+has a wall-clock deadline and a 30s API request timeout. The entire `up` command
+is bounded below 20 minutes including kill grace; `down` is bounded to 215s.
+A timeout deliberately leaves evidence available;
 run `scripts/karpenter-smoke.sh down` to remove the namespace (180s timeout), even
 if `up` failed. Do not increase replicas repeatedly to solve provisioning failures.
 
@@ -189,7 +194,9 @@ reschedule **all** workloads on `lab` nodes to approved surviving capacity. Hono
 PDBs and wait for evictions; check application recovery. With approval, change
 `karpenter_capacity_enabled=false`, review/apply a plan removing only the capacity
 Helm release. NodePool deletion cascades NodeClaims and controller finalizers drain
-and terminate their EC2 nodes. Wait for no `lab` NodeClaims/nodes and confirm in
+and terminate their EC2 nodes. Manual NodePool deletion is not rate-limited by the
+one-node disruption budget; drain/reschedule workloads first rather than relying
+on that budget for teardown safety. Wait for no `lab` NodeClaims/nodes and confirm in
 EC2 that tagged workers have terminated. If blocked, retain controller and policies
 and diagnose workloads/PDBs; never strip finalizers just to unblock Terraform.
 
@@ -217,8 +224,10 @@ PYTHON=/tmp/karpenter-checks/bin/python scripts/check-karpenter-offline.sh
 Set HELM/TERRAFORM to installed binary paths if needed. The script downloads only
 pinned public charts, initializes providers with no backend, validates Terraform,
 renders Helm, checks release CRD structural JSON Schema and unknown spec fields,
+compares all five IAM policies with the pinned official CloudFormation source,
 asserts controller/Spot/IAM invariants, compares existing Terraform semantics and
 it-tools bytes with baseline 5d2cf29, and executes smoke sequencing/cleanup with a
-fake kubectl. It never calls real kubectl or AWS. Kubernetes CEL admission,
+fake kubectl, including a stalled-process deadline test using real GNU timeout.
+It never calls real kubectl or AWS. Kubernetes CEL admission,
 controller reconciliation and cloud permissions cannot be proven by JSON Schema;
 server admission and the live acceptance checks above remain required.
