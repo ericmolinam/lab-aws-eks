@@ -137,3 +137,11 @@ flowchart LR
 2. **ExternalDNS**:
    - Watches the cluster's `Ingress` resources.
    - Automatically provisions, updates, and deletes `CNAME` records in **Cloudflare** pointing to the ALB address, ensuring DNS stays in sync with the application lifecycle.
+
+## Demand-based worker capacity
+
+Karpenter adds request-based Spot workload provisioning and consolidation while
+retaining the existing `general` managed group for bootstrap capacity. See the
+[Karpenter deployment, verification and teardown runbook](docs/KARPENTER.md) for
+version pins, configuration, offline checks and the bounded smoke test.
+Dynamic capacity is disabled until the explicit second deployment stage.

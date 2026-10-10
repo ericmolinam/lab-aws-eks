@@ -1,0 +1,12 @@
+# Offline fixture IDs; Terraform supplies actual cluster IDs at deployment.
+clusterName: dev-eks
+nodeRole: dev-eks-karpenter-nodes
+subnetIds: [subnet-private-a, subnet-private-b]
+securityGroupId: sg-cluster
+zones: [eu-west-1a, eu-west-1b]
+cpuLimit: "16"
+memoryLimit: 64Gi
+capacityType: spot
+instanceFamilies: [m5, m5a, m6i, m6a, c5, c5a, c6i, c6a, r5, r5a, r6i, r6a]
+instanceSizes: [large, xlarge]
+consolidateAfter: 5m

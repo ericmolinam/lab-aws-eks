@@ -59,7 +59,7 @@ resource "helm_release" "aws_lbc" {
   ]
 
   depends_on = [
-    aws_eks_node_group.general, 
+    aws_eks_node_group.general,
     aws_eks_pod_identity_association.aws_lbc,
-    aws_eks_access_policy_association.sso_admin]
+  aws_eks_access_policy_association.sso_admin]
 }

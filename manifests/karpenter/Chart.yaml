@@ -1,0 +1,5 @@
+apiVersion: v2
+name: karpenter-capacity
+description: Release-matched lab workload capacity
+version: 0.1.0
+appVersion: "1.13.0"

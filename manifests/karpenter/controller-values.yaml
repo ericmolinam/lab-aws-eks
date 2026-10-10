@@ -1,0 +1,15 @@
+replicas: 1
+serviceAccount:
+  name: karpenter
+nodeSelector:
+  kubernetes.io/os: linux
+  eks.amazonaws.com/nodegroup: general
+# One replica must also work at the existing managed group's min_size=1.
+topologySpreadConstraints: []
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
